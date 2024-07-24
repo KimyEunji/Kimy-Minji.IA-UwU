@@ -19,7 +19,8 @@
         "cache-manager": "5.2.4",
         "express": "^4.19.2",
         "qrcode": "^1.5.3",
-        "wa-sticker-formatter": "4.4.4"
+        "wa-sticker-formatter": "4.4.4",
+        "ws": "^8.18.0"
     },
     "devDependencies": {
         "eslint": "^8.52.0",
