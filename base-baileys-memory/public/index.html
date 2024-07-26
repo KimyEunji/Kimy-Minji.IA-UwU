@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot de WhatsApp - Kimy Min-ji.IA</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #particles-js {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom right, #333333, #000000);
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 800px;
+            padding: 20px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        h1 {
+            color: #4285f4;
+        }
+
+        .content {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .image-container, .qr-code {
+            width: 200px; /* Ajusta el tamaño del contenedor aquí */
+            height: 200px;
+            border-radius: 15px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .image-container {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .image-container img, .qr-code img {
+            width: 100%;
+            height: auto;
+            border-radius: 15px;
+        }
+
+        .qr-code {
+            border: 5px solid #4285f4;
+            padding: 10px;
+            text-align: center;
+        }
+
+        p {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .checkmark {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            display: inline-block;
+            border: 5px solid #4CAF50;
+            position: relative;
+            animation: pop-in 0.3s ease-out forwards;
+        }
+
+        .checkmark::before {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4CAF50;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: grow 0.3s ease-out forwards;
+        }
+
+        .checkmark::after {
+            content: '';
+            width: 60px;
+            height: 30px;
+            border-left: 10px solid #4CAF50;
+            border-bottom: 10px solid #4CAF50;
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            animation: draw 0.3s ease-out forwards 0.3s;
+        }
+
+        @keyframes pop-in {
+            0% { transform: scale(0); }
+            80% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes grow {
+            0% { transform: translate(-50%, -50%) scale(0); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        @keyframes draw {
+            0% { width: 0; height: 0; }
+            100% { width: 60px; height: 30px; }
+        }
+
+        footer {
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            text-align: center;
+            padding: 5px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script>
+        window.onload = function() {
+            particlesJS('particles-js', {
+                "particles": {
+                    "number": {
+                        "value": 100,
+                        "density": {
+                            "enable": true,
+                            "value_area": 800
+                        }
+                    },
+                    "color": {
+                        "value": "#66ff66"
+                    },
+                    "shape": {
+                        "type": "circle",
+                        "stroke": {
+                            "width": 0,
+                            "color": "#000000"
+                        },
+                        "polygon": {
+                            "nb_sides": 5
+                        }
+                    },
+                    "opacity": {
+                        "value": 0.7,
+                        "random": false,
+                        "anim": {
+                            "enable": false,
+                            "speed": 1,
+                            "opacity_min": 0.1,
+                            "sync": false
+                        }
+                    },
+                    "size": {
+                        "value": 5,
+                        "random": true,
+                        "anim": {
+                            "enable": false,
+                            "speed": 40,
+                            "size_min": 0.1,
+                            "sync": false
+                        }
+                    },
+                    "line_linked": {
+                        "enable": true,
+                        "distance": 150,
+                        "color": "#66ff66",
+                        "opacity": 0.5,
+                        "width": 1
+                    },
+                    "move": {
+                        "enable": true,
+                        "speed": 4,
+                        "direction": "none",
+                        "random": false,
+                        "straight": false,
+                        "out_mode": "out",
+                        "bounce": false,
+                        "attract": {
+                            "enable": true,
+                            "rotateX": 3000,
+                            "rotateY": 3000
+                        }
+                    }
+                },
+                "interactivity": {
+                    "detect_on": "canvas",
+                    "events": {
+                        "onhover": {
+                            "enable": true,
+                            "mode": "grab"
+                        },
+                        "onclick": {
+                            "enable": false,
+                            "mode": "push"
+                        },
+                        "resize": true
+                    }
+                },
+                "retina_detect": true
+            });
+
+            // WebSocket setup code
+            let ws;
+            function connectWebSocket() {
+                ws = new WebSocket('ws://' + window.location.host);
+                ws.onopen = function() {
+                    console.log('WebSocket connection established');
+                };
+                ws.onmessage = function(event) {
+                    console.log('WebSocket message received:', event.data);
+                    const data = JSON.parse(event.data);
+                    if (data.connected) {
+                        document.querySelector('.qr-code').innerHTML = '<div class="checkmark"></div>';
+                        document.querySelector('p').textContent = 'Listo estoy conectada ahora puedes hablar conmigo en Whatsapp';
+                    } else if (data.qr) {
+                        document.querySelector('.qr-code').innerHTML = '<img src="data:image/png;base64,' + data.qr + '" alt="Código QR del Bot">';
+                    }
+                };
+                ws.onerror = function(error) {
+                    console.log('WebSocket error:', error);
+                };
+                ws.onclose = function() {
+                    console.log('WebSocket connection closed');
+                };
+            }
+            connectWebSocket();
+        };
+    </script>
+</head>
+<body>
+    <div id="particles-js"></div>
+    <div class="container">
+        <h1>Bot de WhatsApp - Kimy Min-ji.IA</h1>
+        <div class="content">
+            <div class="image-container">
+                <img src="img/KimyMinji-icon.png" alt="KimyMinji.IA">
+            </div>
+            <div class="qr-code">
+                <p>Esperando el código QR...</p>
+            </div>
+        </div>
+        <p>Escanea el código en WhatsApp para empezar una conversación conmigo.</p>
+    </div>
+    <footer>
+        <p>Copyright: <span>© <script>document.write(new Date().getFullYear())</script></span> | v3.4 | Created by [KimyCompany]</p>
+    </footer>
+</body>
+</html>

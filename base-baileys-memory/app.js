@@ -1,4 +1,5 @@
 const express = require('express');
+const bodyParser = require('body-parser');
 const { createBot, createProvider, createFlow, addKeyword, EVENTS } = require('@bot-whatsapp/bot');
 const BaileysProvider = require('@bot-whatsapp/provider/baileys');
 const MockAdapter = require('@bot-whatsapp/database/mock');
@@ -10,12 +11,23 @@ const app = express();
 const port = 3000;
 let botConnected = false;
 
+// Middleware para procesar datos POST
+app.use(bodyParser.json());
+
 // Crear WebSocket Server
 const wss = new WebSocket.Server({ noServer: true });
 
 wss.on('connection', (ws) => {
     console.log('New WebSocket connection');
     ws.send(JSON.stringify({ connected: botConnected }));
+    // Enviar el QR code si no está conectado
+    if (!botConnected) {
+        const qrPath = path.join(__dirname, 'bot.qr.png');
+        if (fs.existsSync(qrPath)) {
+            const qrImage = fs.readFileSync(qrPath).toString('base64');
+            ws.send(JSON.stringify({ connected: botConnected, qr: qrImage }));
+        }
+    }
 });
 
 const menuPath = path.join(__dirname, 'mensajes', 'menu.txt');
@@ -49,9 +61,12 @@ const createWhatsAppBot = async () => {
     adapterProvider.on('qr', (qr) => {
         botConnected = false;
         console.log('QR code received, bot not connected');
+        const qrPath = path.join(__dirname, 'bot.qr.png');
+        fs.writeFileSync(qrPath, Buffer.from(qr, 'base64'));
+        const qrImage = fs.readFileSync(qrPath).toString('base64');
         wss.clients.forEach(client => {
             if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({ connected: botConnected, qr }));
+                client.send(JSON.stringify({ connected: botConnected, qr: qrImage }));
             }
         });
     });
@@ -72,141 +87,29 @@ const createWhatsAppBot = async () => {
     return bot;
 };
 
-// Servir la imagen del código QR almacenada
+// Servir la página de inicio de sesión
 app.get('/', (req, res) => {
-    const imagePath = path.join(__dirname, 'bot.qr.png');
-    const image = fs.readFileSync(imagePath);
-    const imageData = image.toString('base64');
-    const encodedImage = `data:image/png;base64,${imageData}`;
-
-    const pageContent = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Bot de WhatsApp - Kimy Min-ji.IA</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                background-color: #f0f0f0;
-                color: #333;
-                margin: 0;
-                padding: 0;
-            }
-            .container {
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 20px;
-                text-align: center;
-            }
-            h1 {
-                color: #4285f4;
-            }
-            .qr-code {
-                border: 5px solid #4285f4;
-                padding: 10px;
-                border-radius: 10px;
-                margin-bottom: 20px;
-                text-align: center;
-            }
-            img {
-                width: 200px;
-                border-radius: 10px;
-            }
-            p {
-                font-size: 18px;
-                font-weight: bold;
-            }
-            .checkmark {
-                width: 100px;
-                height: 100px;
-                border-radius: 50%;
-                display: inline-block;
-                border: 5px solid #4CAF50;
-                position: relative;
-                animation: pop-in 0.3s ease-out forwards;
-            }
-            .checkmark::before {
-                content: '';
-                width: 10px;
-                height: 10px;
-                border-radius: 50%;
-                background: #4CAF50;
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                animation: grow 0.3s ease-out forwards;
-            }
-            .checkmark::after {
-                content: '';
-                width: 60px;
-                height: 30px;
-                border-left: 10px solid #4CAF50;
-                border-bottom: 10px solid #4CAF50;
-                position: absolute;
-                top: 30%;
-                left: 50%;
-                transform: translate(-50%, -50%) rotate(-45deg);
-                animation: draw 0.3s ease-out forwards 0.3s;
-            }
-            @keyframes pop-in {
-                0% { transform: scale(0); }
-                80% { transform: scale(1.2); }
-                100% { transform: scale(1); }
-            }
-            @keyframes grow {
-                0% { transform: translate(-50%, -50%) scale(0); }
-                100% { transform: translate(-50%, -50%) scale(1); }
-            }
-            @keyframes draw {
-                0% { width: 0; height: 0; }
-                100% { width: 60px; height: 30px; }
-            }
-        </style>
-        <script>
-            let ws;
-            function connectWebSocket() {
-                ws = new WebSocket('ws://' + window.location.host);
-                ws.onopen = function() {
-                    console.log('WebSocket connection established');
-                };
-                ws.onmessage = function(event) {
-                    console.log('WebSocket message received:', event.data);
-                    const data = JSON.parse(event.data);
-                    if (data.connected) {
-                        document.querySelector('.qr-code').innerHTML = '<div class="checkmark"></div>';
-                        document.querySelector('p').textContent = 'Listo estoy conectada ahora puedes hablar conmigo en Whatsapp';
-                    } else if (data.qr) {
-                        document.querySelector('.qr-code').innerHTML = '<img src="data:image/png;base64,' + data.qr + '" alt="Código QR del Bot">';
-                    }
-                };
-                ws.onerror = function(error) {
-                    console.log('WebSocket error:', error);
-                };
-                ws.onclose = function() {
-                    console.log('WebSocket connection closed');
-                };
-            }
-            window.onload = connectWebSocket;
-        </script>
-    </head>
-    <body>
-        <div class="container">
-            <h1>Bot de WhatsApp - Kimy Min-ji.IA</h1>
-            <div class="qr-code">
-                <img src="${encodedImage}" alt="Código QR del Bot">
-            </div>
-            <p>Escanea el código en WhatsApp para empezar una conversación conmigo.</p>
-        </div>
-    </body>
-    </html>
-    `;
-
-    res.send(pageContent);
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
+
+// Servir la página del QR después de iniciar sesión
+app.get('/index.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Manejar la autenticación
+app.post('/login', (req, res) => {
+    const { user, password } = req.body;
+    // Validar las credenciales (esto es solo un ejemplo, en un entorno real deberías usar una base de datos)
+    if (user === 'KimyMin-ji' && password === 'MinjiOwO1234') {
+        res.status(200).send();
+    } else {
+        res.status(401).send();
+    }
+});
+
+// Servir archivos estáticos desde la carpeta public
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Iniciar el servidor Express y el bot de WhatsApp
 const server = app.listen(port, () => {
