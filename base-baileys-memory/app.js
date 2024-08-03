@@ -1,11 +1,17 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const { createBot, createProvider, createFlow, addKeyword, EVENTS } = require('@bot-whatsapp/bot');
+const { createBot, createProvider, createFlow, addKeyword, EVENTS, addAnswer } = require('@bot-whatsapp/bot');
 const BaileysProvider = require('@bot-whatsapp/provider/baileys');
 const MockAdapter = require('@bot-whatsapp/database/mock');
 const fs = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
+const moment = require('moment');
+
+const xdata = require('./xdata');
+
+// Configuración de la localización para 'moment'
+moment.locale('es');
 
 const app = express();
 const port = 3000;
@@ -45,10 +51,82 @@ const flowWelcome = addKeyword(EVENTS.WELCOME)
         'desarrollada por el equipo de KimyCompany'
     ]);
 
+    const userContext = {};
+
+    const flowCitas = addKeyword('hacer una cita')
+        .addAnswer('Claro, en un momento agendaremos tu cita. Para empezar, ¿puedes decirme tu nombre?', { capture: true }, async (ctx, { flowDynamic }) => {
+            const nombre = ctx.body;
+            userContext[ctx.from] = { nombre };
+            await flowDynamic([
+                `Gracias, ${nombre}.`
+            ]);
+        })
+        .addAnswer('¿Cuál es la fecha para la cita? (por ejemplo, 2024-08-15)?', { capture: true }, async (ctx, { flowDynamic }) => {
+            const fecha = ctx.body;
+            userContext[ctx.from].fecha = fecha;
+            const diaSemana = moment(fecha).format('dddd').toLowerCase();
+            if (xdata.horario[diaSemana].inicio === 'cerrado') {
+                await flowDynamic([
+                    'Lo siento, no atendemos ese día. Por favor elige otra fecha.'
+                ]);
+                return;
+            }
+            await flowDynamic([
+                `Perfecto, el ${fecha}.`
+            ]);
+        })
+        .addAnswer('¿Y a qué hora? (por ejemplo, 14:30)?', { capture: true }, async (ctx, { flowDynamic }) => {
+            const hora = ctx.body;
+            const { fecha } = userContext[ctx.from];
+            const diaSemana = moment(fecha).format('dddd').toLowerCase();
+            const horaInicio = moment(xdata.horario[diaSemana].inicio, 'HH:mm');
+            const horaFin = moment(xdata.horario[diaSemana].fin, 'HH:mm');
+            const horaCita = moment(hora, 'HH:mm');
+    
+            if (!horaCita.isBetween(horaInicio, horaFin)) {
+                await flowDynamic([
+                    `Lo siento, nuestro horario de atención el ${diaSemana} es de ${xdata.horario[diaSemana].inicio} a ${xdata.horario[diaSemana].fin}. Por favor elige otra hora.`
+                ]);
+                return;
+            }
+    
+            const citaExistente = xdata.citas.find(cita => cita.fecha === fecha && cita.hora === hora);
+            if (citaExistente) {
+                await flowDynamic([
+                    'Lo siento, ya tenemos una cita agendada para esa fecha y hora. Por favor elige otra hora.'
+                ]);
+                return;
+            }
+    
+            userContext[ctx.from].hora = hora;
+            const { nombre } = userContext[ctx.from];
+            xdata.citas.push({ nombre, fecha, hora });
+    
+            await flowDynamic([
+                `¡Listo! He anotado tu cita para ${nombre} el ${fecha} a las ${hora}.`
+            ]);
+        });
+    
+            const flowConsulta = addKeyword('consultar')
+    .addAnswer('Por favor, dime tu pregunta:', { capture: true }, async (ctx, { flowDynamic }) => {
+        const pregunta = ctx.body.toLowerCase();
+        const entry = xdata.find(item => item.pregunta.toLowerCase() === pregunta);
+        
+        if (entry) {
+            await flowDynamic([
+                entry.respuesta
+            ]);
+        } else {
+            await flowDynamic([
+                'Lo siento pero no cuento con esa información. ¿En qué más te puedo ayudar?'
+            ]);
+        }
+    });
+    
 // Crear el bot de WhatsApp y configurar los flujos
 const createWhatsAppBot = async () => {
     const adapterDB = new MockAdapter();
-    const adapterFlow = createFlow([flowWelcome]);
+    const adapterFlow = createFlow([flowWelcome, flowCitas, flowConsulta]);
     const adapterProvider = createProvider(BaileysProvider);
 
     const bot = createBot({
