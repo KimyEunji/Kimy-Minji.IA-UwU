@@ -9,8 +9,6 @@ const WebSocket = require('ws');
 const moment = require('moment');
 const { exec } = require('child_process');
 
-const xdata = require('./xdata');
-
 // Configuración de la localización para 'moment'
 moment.locale('es');
 
