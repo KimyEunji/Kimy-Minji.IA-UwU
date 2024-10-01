@@ -16,8 +16,9 @@ const app = express();
 const port = 3000;
 let botConnected = false;
 
-// Middleware para procesar datos POST
+// Middleware para procesar datos POST y servir archivos estáticos
 app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Crear WebSocket Server
 const wss = new WebSocket.Server({ noServer: true });
@@ -25,7 +26,6 @@ const wss = new WebSocket.Server({ noServer: true });
 wss.on('connection', (ws) => {
     console.log('New WebSocket connection');
     ws.send(JSON.stringify({ connected: botConnected }));
-    // Enviar el QR code si no está conectado
     if (!botConnected) {
         const qrPath = path.join(__dirname, 'bot.qr.png');
         if (fs.existsSync(qrPath)) {
@@ -34,9 +34,6 @@ wss.on('connection', (ws) => {
         }
     }
 });
-
-const menuPath = path.join(__dirname, 'mensajes', 'menu.txt');
-const menu = fs.readFileSync(menuPath, 'utf8');
 
 // Mensaje de Bienvenida
 const flowWelcome = addKeyword(EVENTS.WELCOME)
@@ -66,15 +63,36 @@ const ejecutarPython = (pregunta, callback) => {
     });
 };
 
+// Función para enviar la actualización de presencia (escribiendo)
+const sendTyping = async (ctx) => {
+    if (ctx.sendPresenceUpdate) {
+        await ctx.sendPresenceUpdate('composing'); // Envía el estado "escribiendo"
+    }
+};
+
 // Flujo para consultas usando la IA local
 const flowConsulta = addKeyword('consultar')
     .addAnswer('Por favor, dime tu pregunta:', { capture: true }, async (ctx, { flowDynamic }) => {
         const pregunta = ctx.body.toLowerCase();
-
-        ejecutarPython(pregunta, async (respuesta) => {
-            await flowDynamic([respuesta]);
-        });
+        
+        // Simular "escribiendo..." por 2 segundos
+        if (ctx.sendPresenceUpdate) {
+            await ctx.sendPresenceUpdate('composing'); // Envía el estado "escribiendo"
+            setTimeout(async () => {
+                await ctx.sendPresenceUpdate('available'); // Regresar a "disponible"
+                ejecutarPython(pregunta, async (respuesta) => {
+                    await flowDynamic([respuesta]);
+                });
+            }, 2000); // Tiempo que dura el estado "escribiendo"
+        } else {
+            // En caso de que ctx.sendPresenceUpdate no esté disponible
+            console.log("El contexto no tiene el método sendPresenceUpdate");
+            ejecutarPython(pregunta, async (respuesta) => {
+                await flowDynamic([respuesta]);
+            });
+        }
     });
+
 
 // Crear el bot de WhatsApp y configurar los flujos
 const createWhatsAppBot = async () => {
@@ -95,24 +113,60 @@ const createWhatsAppBot = async () => {
         const qrPath = path.join(__dirname, 'bot.qr.png');
         fs.writeFileSync(qrPath, Buffer.from(qr, 'base64'));
         const qrImage = fs.readFileSync(qrPath).toString('base64');
-        wss.clients.forEach(client => client.send(JSON.stringify({ connected: botConnected, qr: qrImage })));
+        wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({ connected: botConnected, qr: qrImage }));
+            }
+        });
     });
 
-    adapterProvider.on('ready', () => {
-        console.log('WhatsApp bot connected');
-        botConnected = true;
-        wss.clients.forEach(client => client.send(JSON.stringify({ connected: botConnected })));
+    adapterProvider.on('connection.update', (update) => {
+        const { connection } = update;
+        if (connection === 'open') {
+            botConnected = true;
+            console.log('Bot connected');
+            wss.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ connected: botConnected }));
+                }
+            });
+        }
     });
+
+    return bot;
 };
 
-// Levantar el servidor y el bot
-app.listen(port, () => {
-    console.log(`Servidor iniciado en el puerto ${port}`);
-    createWhatsAppBot();
+// Servir la página de inicio de sesión
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// Manejar las conexiones de WebSocket
-app.on('upgrade', (request, socket, head) => {
+// Servir la página del QR después de iniciar sesión
+app.get('/index.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Manejar la autenticación
+app.post('/login', (req, res) => {
+    const { user, password } = req.body;
+    // Validar las credenciales (esto es solo un ejemplo, en un entorno real deberías usar una base de datos)
+    if (user === 'KimyMin-ji' && password === 'MinjiOwO1234') {
+        res.status(200).send();
+    } else {
+        res.status(401).send();
+    }
+});
+
+// Servir archivos estáticos desde la carpeta public
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Iniciar el servidor Express y el bot de WhatsApp
+const server = app.listen(port, () => {
+    console.log(`Servidor Express escuchando en http://localhost:${port}`);
+    createWhatsAppBot(); // Iniciar el bot de WhatsApp
+});
+
+server.on('upgrade', (request, socket, head) => {
     wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request);
     });
